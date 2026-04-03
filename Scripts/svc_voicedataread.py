@@ -92,7 +92,6 @@ def main():
         sys.exit(1)
 
     print(f"\nSVC_VoiceData::Read RVA = {hex(rva)}")
-    print(f"Use in code: void* targetFunc = reinterpret_cast<void*>(reinterpret_cast<uintptr_t>(hEngine) + {hex(rva)});")
     print(f"Relative offset: 0x{rva:x}")
 
 if __name__ == "__main__":
