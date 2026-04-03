@@ -4,90 +4,90 @@ A Garry's Mod client-side module that captures voice chat data, decompresses it,
 
 ## Compatibility
 
-This module was compiled exclusively for the **32-bit (x86)** version of Garry's Mod, based on reverse engineering of the Windows client. It will **not work** on the 64-bit branch due to binary differences and the target function offset being specific to the x86 build.
+> [!IMPORTANT]  
+> This module is now optimized for the **64-bit (x86-64)** version of Garry's Mod. While 32-bit build configurations exist, they are considered **legacy/non-functional** because the engine offsets are maintained exclusively for the x64 architecture.
 
-**Tested with:**  
-Protocol version 24  
-Network version 2025.03.26 (garrysmod)  
-Exe build: 15:41:51 Dec 10 2025 (9860) (4000)  
-GMod version 2025.12.10, branch: unknown, multicore: 0  
-Windows 32bit
+**Tested with:**
+* **Protocol version:** 24
+* **Network version:** 2025.03.26 (garrysmod)
+* **Exe build:** 14:35:20 Apr 1 2026 (10007) (4000)
+* **GMod version:** 2026.04.01, branch: x86-64, multicore: 1
+* **Windows 64-bit**
 
 ## Build Instructions
 
 ### Prerequisites
-- [Premake5](https://premake.github.io/)
+- [Premake5](https://premake.github.io/) (Included in root)
 - [garrysmod_common](https://github.com/danielga/garrysmod_common)
 
-### Steps
+### Step-by-Step Setup
+1.  **Initialize Environment**: Run `generate_garrysmod_common.bat`. This ensures all necessary headers from `garrysmod_common` are initialized.
+2.  **Generate Projects**: Run `generate_x64.bat`. This uses `premake5_x64.lua` to create the Visual Studio solution.
+3.  **Open Solution**: Navigate to `projects\windows\vs2026\x64` and open **`voice_packets.slnx`**.
+4.  **Compilation**:
+    * Set configuration to **Release** and platform to **x64**.
+    * Press **`F7`** to build the solution.
+5.  **Output**: The binary `gmcl_voice_packets_win64.dll` will be created in the output directory.
 
-1. Clone this repository and navigate to its root.
+## Maintenance & Offsets
 
-2. Clone the garrysmod_common repository and its submodules:
-   ```bash
-   git clone https://github.com/danielga/garrysmod_common.git
-   cd garrysmod_common
-   git submodule update --init --recursive
-   ```
+> [!TIP]
+> If a game update breaks the module, you can find the new offset using the provided Python utility.
 
-3. Generate the project files using Premake5:
-   ```bash
-   premake5.exe --os=windows --gmcommon=./garrysmod_common vs2026
-   ```
-   (Adjust the path to garrysmod_common if needed)
+* **Script Location**: `Scripts/svc_voicedataread.py`
+* **How to run**: Execute `Scripts/start.bat`. This scans `engine.dll` for the `SVC_VoiceData::Read` signature and returns the new RVA (offset).
 
-4. Open the generated solution in `projects/windows/vs2026/` and build the project. The compiled binary will be placed in the appropriate output directory.
+> [!IMPORTANT]
+> Before running the script, copy `engine.dll` from your Garry's Mod installation into the `Scripts` folder.  
+> The default path is: `GarrysMod/bin/win64/engine.dll` (relative to your Garry's Mod root directory).
 
-## Dependencies
+## Lua API Documentation
 
-The module links against:
-- [minhook](https://github.com/TsudaKageyu/minhook) – for hooking the target function.
-- [opus](https://opus-codec.org/) – though Steam's `DecompressVoice` is used, the opus library is required for linking.
-- [Steam SDK](https://partner.steamgames.com/downloads/list) – provides `steam_api.lib` and `sdkencryptedappticket.lib`.
+### Methods (`voice_packets` table)
 
-All dependencies are expected to be placed in the `deps/` folder as shown in the Premake script.
+#### `voice_packets.SetTimeout(number: seconds)`
+Sets the duration of silence required before a voice session is considered "finished."
+* **Default**: `1.0`
+* **Example**: `voice_packets.SetTimeout(0.5)`
 
-## How It Works
+#### `voice_packets.GetActiveSpeakers()`
+Returns a sequentially indexed table of player indices (UserIDs) currently transmitting voice.
+* **Returns**: `table` (e.g., `{1, 4, 12}`)
 
-The module hooks the `SVC_VoiceData::Read` method inside `engine.dll`. The function offset (`0x1ced30`) was identified through disassembly (Ghidra dump provided). This method is called when a `svc_VoiceData` message is received from a client.
+#### `voice_packets.CreateWavFromPCM(string: pcmData)`
+Converts raw 16-bit PCM data into a valid, playable `.wav` file string (48000Hz, Mono, 16-bit).
+* **Returns**: `string` (Binary WAV data)
 
-### Hooked Function (`Hooked_SVC_VoiceData_Read`)
-- Extracts the client index, data length (in bits), and a pointer to the raw voice data buffer.
-- Because the data may be unaligned (due to bitstream reading), it manually aligns the bytes before passing them to Steam's decompressor.
-- Calls `SteamUser()->DecompressVoice` to convert Opus‑encoded voice into 16‑bit PCM.
+#### `voice_packets.CheckVoiceTimeouts()`
+Internal logic handler. This is called automatically by a module-created timer every 0.1s to trigger `OnVoiceChatEnd`.
 
-### Voice Data Storage
-- For each client that starts speaking, a `VoiceData` structure is created containing:
-  - A growing PCM buffer.
-  - A timestamp of the last received packet.
-  - A flag indicating whether the client is currently speaking.
-- PCM data is appended until the client stops speaking (timeout is reached).
+---
 
-### Timeout Handling
-- A Lua timer (every 0.1 seconds) calls `CheckVoiceTimeouts`.
-- If no voice packet is received for `g_flVoiceTimeout` seconds (default 1.0), the speaking session ends.
-- The accumulated PCM data is then wrapped in a valid WAV header (mono, 48kHz, 16‑bit) and passed to the Lua hook `OnVoiceChatEnd`.
+### Hooks
 
-### Lua Integration
-The module exposes a table `voice_packets` with the following functions:
+#### `OnVoiceChatStart(number: clientIndex)`
+Called the moment the module detects the first voice packet from a specific player.
+* **clientIndex**: The Entity index of the player.
 
-- `voice_packets.CheckVoiceTimeouts()` – called automatically by a timer, checks for finished voice sessions and fires the `OnVoiceChatEnd` hook.
-- `voice_packets.SetTimeout(seconds)` – changes the inactivity timeout.
-- `voice_packets.GetActiveSpeakers()` – returns a table mapping client indices to an array index of currently speaking players.
+#### `OnVoiceChatEnd(number: clientIndex, string: pcmData)`
+Called when a player stops talking (after the timeout duration).
+* **clientIndex**: The Entity index of the player.
+* **pcmData**: The raw, decompressed 16-bit PCM binary string. Use `CreateWavFromPCM` to save this as a file.
 
-Two Lua hooks are also available:
-
-- `hook.Add("OnVoiceChatStart", "id", function(clientIndex) end)` – triggered when a client starts sending voice.
-- `hook.Add("OnVoiceChatEnd", "id", function(clientIndex, wavData) end)` – triggered when a client stops speaking, with `wavData` being a string containing a complete WAV file.
-
-## Example Lua Usage
+## Example Usage
 
 ```lua
 local status = pcall(require, "voice_packets")
-if !status or !voice_packets or !voice_packets.CheckVoiceTimeouts then return print("[Voice-Lua] ERROR: C++ library not loaded!") end
+
+if not status or not voice_packets or not voice_packets.CheckVoiceTimeouts then
+    print("[Voice-Lua] ERROR: C++ library not loaded!")
+    return
+end
 
 local pathDir = "voice_logs"
-file.CreateDir(pathDir)
+if not file.Exists(pathDir, "DATA") then
+    file.CreateDir(pathDir)
+end
 
 voice_packets.SetTimeout(1.0)
 
@@ -98,9 +98,8 @@ timer.Create("CheckActiveSpeakers", 5, 0, function()
         local names = {}
         for _, idx in ipairs(active) do
             local ply = Entity(idx)
-            table.insert(names, IsValid(ply) and ply:Nick() or "player " .. idx)
+            table.insert(names, IsValid(ply) and ply:Nick() or "Player " .. idx)
         end
-
         print("[Voice] Currently speaking: " .. table.concat(names, ", "))
     end
 end)
@@ -108,25 +107,38 @@ end)
 hook.Add("OnVoiceChatStart", "MyVoiceStart", function(clientIndex)
     local ply = Entity(clientIndex)
     local name = IsValid(ply) and ply:Nick() or "Player " .. clientIndex
-
     print("[Voice] " .. name .. " started speaking...")
 end)
 
 hook.Add("OnVoiceChatEnd", "MyVoiceEnd", function(clientIndex, data)
+    if not data or #data == 0 then return end
+
+    local wav = voice_packets.CreateWavFromPCM(data)
     local ply = Entity(clientIndex)
+    
     local rawName = IsValid(ply) and ply:Nick() or "unknown_" .. clientIndex
-
     local safeName = string.gsub(rawName, "[%c%/%\\%:%*%?%\"%<%>%|]", "_")
-
+    
     local fileName = "voice_" .. safeName .. "_" .. os.time() .. ".wav"
-    file.Write(pathDir .. "/" .. fileName, data)
+    local filePath = pathDir .. "/" .. fileName
 
-    print("[Voice] Recording saved: " .. fileName .. " | Size: " .. string.format("%.2f", #data / 1024) .. " KB")
+    file.Write(filePath, wav)
+
+    local sizeKB = #wav / 1024
+    print(string.format("[Voice] Recording saved: %s | Size: %.2f KB", fileName, sizeKB))
 end)
 ```
 
-## Notes
+## How It Works
 
-- The module is **client‑side only**; it hooks into the `engine.dll`.
-- The WAV files are saved in the standard format for mono 48 kHz 16‑bit PCM.
-- If the module fails to load, check that the `engine.dll` offset is correct for your GMod version.
+The module hooks the `SVC_VoiceData::Read` method inside `engine.dll` using **MinHook**.
+
+1.  **Extraction**: It intercepts the raw bitstream from the engine.
+2.  **Alignment**: Manually aligns the bit-level data into byte-aligned buffers.
+3.  **Decompression**: Uses the Steamworks SDK (`ISteamUser::DecompressVoice`) to decode Opus/SILK data into standard 16-bit PCM.
+4.  **WAV Construction**: Adds the standard RIFF/WAVE headers to the PCM data upon request.
+
+## Notes
+- The module is **client-side only**.
+- It requires `engine.dll` offsets to be accurate.
+- 64-bit GMod is mandatory for current build stability.
