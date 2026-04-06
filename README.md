@@ -32,14 +32,9 @@ A Garry's Mod client-side module that captures voice chat data, decompresses it,
 ## Maintenance & Offsets
 
 > [!TIP]
-> If a game update breaks the module, you can find the new offset using the provided Python utility.
+> This module no longer requires manual offset updates after game patches.
 
-* **Script Location**: `Scripts/svc_voicedataread.py`
-* **How to run**: Execute `Scripts/start.bat`. This scans `engine.dll` for the `SVC_VoiceData::Read` signature and returns the new RVA (offset).
-
-> [!IMPORTANT]
-> Before running the script, copy `engine.dll` from your Garry's Mod installation into the `Scripts` folder.  
-> The default path is: `GarrysMod/bin/win64/engine.dll` (relative to your Garry's Mod root directory).
+The module implements an internal **Pattern Scanner** that searches the `engine.dll` memory space for the specific instruction signature of `SVC_VoiceData::Read`. This ensures that the module remains functional even if the function's memory address changes in future Garry's Mod updates.
 
 ## Lua API Documentation
 

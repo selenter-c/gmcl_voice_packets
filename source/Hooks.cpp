@@ -1,4 +1,5 @@
 #include "VoiceCore.h"
+#include "PatternScanner.h"
 #include <MinHook.h>
 
 typedef bool(__fastcall* OriginalReadFn)(void*, void*);
@@ -50,7 +51,12 @@ bool InitializeHook() {
         return false;
     }
 
-    void* targetFunc = reinterpret_cast<void*>(reinterpret_cast<uintptr_t>(hEngine) + ENGINE_HOOK_OFFSET);
+    void* targetFunc = PatternScanner::FindVoiceDataRead(hEngine);
+    
+    if (!targetFunc) {
+        GameLog("Failed to find signature for SVC_VoiceData_Read");
+        return false;
+    }
 
     if (MH_Initialize() != MH_OK) {
         GameLog("MinHook init failed");

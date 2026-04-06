@@ -1,2 +1,0 @@
-python svc_voicedataread.py
-pause

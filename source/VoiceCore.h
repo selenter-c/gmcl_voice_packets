@@ -11,7 +11,6 @@ constexpr uint32_t SAMPLE_RATE = 48000;
 constexpr uint32_t BYTE_RATE = 96000;
 constexpr uint32_t MAX_FRAME_BYTES = 22528;
 constexpr int MAX_CLIENTS = 128;
-constexpr uintptr_t ENGINE_HOOK_OFFSET = 0x1f5cd0;
 
 struct VoiceData {
     std::vector<char> pcmBuffer;
